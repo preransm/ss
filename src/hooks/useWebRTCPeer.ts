@@ -138,12 +138,16 @@ export function useWebRTCPeer(
   }, [peerId]);
 
   const createOffer = useCallback(async (viewerId: string) => {
+    console.log('Creating peer connection for viewer:', viewerId);
     const pc = createPeerConnection(viewerId);
     setConnectionState('connecting');
 
     try {
+      console.log('Creating offer...');
       const offer = await pc.createOffer();
+      console.log('Offer created, setting local description');
       await pc.setLocalDescription(offer);
+      console.log('Local description set, sending offer via signaling channel');
 
       if (channelRef.current) {
         channelRef.current.send({
@@ -156,6 +160,9 @@ export function useWebRTCPeer(
             to: viewerId,
           } as SignalingMessage,
         });
+        console.log('Offer sent to viewer:', viewerId);
+      } else {
+        console.error('Signaling channel not available');
       }
     } catch (error) {
       console.error('Error creating offer:', error);
@@ -243,14 +250,22 @@ export function useWebRTCPeer(
 
   // Set up signaling channel
   useEffect(() => {
+    console.log('Setting up signaling channel for room:', roomCode, 'peer:', peerId);
     const channel = supabase.channel(`room:${roomCode}`);
 
     channel.on('broadcast', { event: 'signaling' }, ({ payload }) => {
       const message = payload as SignalingMessage;
+      console.log('Received signaling message:', message.type, 'from:', message.from, 'to:', message.to);
       
       // Ignore messages from self or not meant for us
-      if (message.from === peerId) return;
-      if (message.to && message.to !== peerId) return;
+      if (message.from === peerId) {
+        console.log('Ignoring message from self');
+        return;
+      }
+      if (message.to && message.to !== peerId) {
+        console.log('Ignoring message not meant for us');
+        return;
+      }
 
       switch (message.type) {
         case 'offer':
@@ -276,7 +291,9 @@ export function useWebRTCPeer(
       }
     });
 
-    channel.subscribe();
+    channel.subscribe((status) => {
+      console.log('Channel subscription status:', status);
+    });
     channelRef.current = channel;
 
     return () => {

@@ -72,6 +72,7 @@ export default function HostRoomPage() {
 
   // Update stream for WebRTC
   useEffect(() => {
+    console.log('Setting local stream:', stream ? 'available' : 'null');
     setLocalStream(stream);
   }, [stream, setLocalStream]);
 
@@ -87,15 +88,17 @@ export default function HostRoomPage() {
   // Create offers for newly approved viewers
   useEffect(() => {
     const approvedViewers = joinRequests.filter(r => r.status === 'approved');
+    console.log('Approved viewers:', approvedViewers.length, 'Connected:', connectedViewers.size);
+    
     approvedViewers.forEach((request) => {
-      // Only create offer if we haven't already for this viewer AND we have a stream
-      if (!connectedViewers.has(request.viewer_id) && stream) {
+      // Create offer if we haven't already for this viewer
+      if (!connectedViewers.has(request.viewer_id)) {
         console.log('Creating offer for viewer:', request.viewer_id);
         createOffer(request.viewer_id);
         setConnectedViewers(prev => new Set([...prev, request.viewer_id]));
       }
     });
-  }, [joinRequests, createOffer, connectedViewers, stream]);
+  }, [joinRequests, createOffer, connectedViewers]);
 
   const handleCopyCode = useCallback(async () => {
     if (roomCode) {
