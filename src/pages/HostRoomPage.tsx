@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useScreenShare } from '@/hooks/useScreenShare';
 import { useWebRTCPeer } from '@/hooks/useWebRTCPeer';
@@ -48,6 +48,7 @@ export default function HostRoomPage() {
   const [copied, setCopied] = useState(false);
   const [sidebarTab, setSidebarTab] = useState<'requests' | 'viewers' | 'chat'>('requests');
   const [connectedViewers, setConnectedViewers] = useState<Set<string>>(new Set());
+  const prevStreamRef = useRef<MediaStream | null>(null);
 
   // Verify host access
   useEffect(() => {
@@ -86,17 +87,26 @@ export default function HostRoomPage() {
   }, [shareState, room, updateSharingState]);
 
   // Create offers for newly approved viewers
-  // Always (re)create offers for all approved viewers whenever stream becomes available or changes
+  // Reset all peer connections and offers for viewers whenever the stream changes
   useEffect(() => {
     if (shareState !== 'active' || !stream) return;
+
+    // If the stream changed, reset all connections
+    if (prevStreamRef.current !== stream) {
+      console.log('Stream changed, resetting all viewer connections');
+      setConnectedViewers(new Set());
+      prevStreamRef.current = stream;
+    }
+
     const approvedViewers = joinRequests.filter(r => r.status === 'approved');
     approvedViewers.forEach((request) => {
-      // Always create a new offer for each approved viewer when stream changes
-      console.log('Creating offer for viewer:', request.viewer_id, '(resetting connection)');
-      createOffer(request.viewer_id);
-      setConnectedViewers(prev => new Set([...prev, request.viewer_id]));
+      if (!connectedViewers.has(request.viewer_id)) {
+        console.log('Creating offer for viewer:', request.viewer_id, '(after stream change)');
+        createOffer(request.viewer_id);
+        setConnectedViewers(prev => new Set([...prev, request.viewer_id]));
+      }
     });
-  }, [stream, shareState, joinRequests, createOffer]);
+  }, [stream, shareState, joinRequests, createOffer, connectedViewers]);
 
   const handleCopyCode = useCallback(async () => {
     if (roomCode) {
